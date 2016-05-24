@@ -4,7 +4,7 @@ z <- numeric(length(package_downloads))
 for(i in 1:1000){
   message(i)
   x <- package_downloads[i,2]
-  a<-rapply(package_dependencies(package_downloads$package[i], which=c("Depends", "Imports"), reverse=TRUE), as.character)
+  a<-rapply(package_dependencies(package_downloads$package[i], which=c("Depends", "Imports", "LinkingTo"), reverse=TRUE), as.character)
   if(length(a)>0){
     names(a) <- NULL
     for(j in 1:length(a)){
