@@ -27,4 +27,4 @@ downloads[, weekday:=weekdays(date)]
 
 save(downloads, file="downloads.Rdata")
 
-load("downloads.Rdata")
+load("~/Documents/data/package_data/downloads.Rdata")
