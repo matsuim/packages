@@ -62,3 +62,10 @@ for(i in 1:length(countries$country)){
 
 save(cp, file="cp.Rdata")
 
+## countries data structure
+country <- rep(names(cp), each=10)
+rank <- rep(1:10, length(cp))
+countries <- rbindlist(cp)
+countries <- cbind(country, rank, countries)
+
+save(countries, file="countries.Rdata")
