@@ -13,7 +13,7 @@ package_downloads <- mutate(package_downloads, rank=c(1:9704))
 
 # reverse dependencies and reverse imports
 library(tools)
-package_downloads <- mutate(package_downloads, rv_dp=lengths(package_dependencies(package_downloads$package, which=c("Depends", "Imports"), reverse=TRUE)))
+package_downloads <- mutate(package_downloads, rv_dp=lengths(package_dependencies(package_downloads$package, which=c("Depends", "Imports", "LinkingTo"), reverse=TRUE)))
 
 save(package_downloads, file="package_downloads.Rdata")
 

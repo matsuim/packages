@@ -12,7 +12,6 @@ filenames = paste("~/Documents/data/packages/files/",all_days, ".csv", sep="")
 
 for(i in 1:length(urls)){
   download.file(urls[i], filenames[i], "auto")
-  
 }
 data <- list(length(urls))
 for(i in 1:length(urls)){
