@@ -1,0 +1,56 @@
+---
+title: "Finding the Most Important R Packages"
+author: "Maggie Matsui"
+output: html_document
+---
+
+Using the raw number of downloads of a certain package does a poor job of telling us how important or useful that package actually is to R users. The number of downloads most packages have is not the same as the number of people who actually typed `install.packages()` to download that package. However, if someone were to install a package that depends on the package we're interested in, the package that we're interested in will still get downloaded, even though the person is not directly using it.  
+By this logic, we need to subract the number of downloads a package receives simply because other packages depend on it. 
+
+```{r}
+library(dplyr)
+library(tools)
+setwd("~/Documents/data/packages")
+load("package_downloads.Rdata")
+```
+
+The `package_downloads` data frame looks like this:
+```{r}
+head(package_downloads)
+```
+
+First, set up a vector of the 300 most downloaded packages and an empty vector where we'll put the index for each package. 
+```{r}
+package_downloads$package <- as.character(package_downloads$package)
+z <- numeric(length(package_downloads))
+```
+
+For each of the packages we're looking at, store the number of downloads in `x`. Then get a character vector of the names of the packages that depend on it. If there are no reverse depends packages, the index will just be the raw number of downloads. If there are reverse depends packages, find the number of downloads for each of those reverse depends package and subtract it from `x`, the original number of downloads. Store the final `x` in a vector.
+```{r}
+options(repos=c(CRAN="https://cran.rstudio.com"))
+for(i in 1:300){
+  x <- package_downloads[i,2]
+  a<-rapply(package_dependencies(package_downloads$package[i], which=c("Depends", "Imports", "LinkingTo"), reverse=TRUE), as.character)
+  if(length(a)>0){
+    names(a) <- NULL
+    for(j in 1:length(a)){
+      if(a[j] %in% package_downloads$package){
+        b <- filter(package_downloads, package==a[j])[,2]
+        x <- x-(.8*b)
+      }
+    }
+  }
+  z[i] <- x
+}
+```
+
+Make a data frame out of the two vectors. Add a raw rank column to see how far packages moved. Arrange the data frame from highest to lowest index and add an index rank column.
+```{r}
+index <- data.frame(package=head(package_downloads$package,300), i=z)
+index <- mutate(index, raw_rank=c(1:300))
+index <- arrange(index, desc(i))
+index <- mutate(index, index_rank=c(1:300))
+```
+```{r}
+head(index,15)
+```

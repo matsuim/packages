@@ -1,8 +1,9 @@
 ## get descriptions
-desc <- character(nrow(package_downloads))
+load("index.Rdata")
+desc <- character(100)
 library(RCurl)
-for(i in 1:nrow(package_downloads)){
-  url <- paste('https://cran.r-project.org/package=', package_downloads$package[i],sep='')
+for(i in 1:100){
+  url <- paste('https://cran.r-project.org/package=', index$package[i],sep='')
   if(url.exists(url)){
     cranpage <- readLines(url)
     if(FALSE==TRUE %in% grepl("removed from the CRAN repository",cranpage)){
@@ -36,22 +37,35 @@ desc <- tm_map(desc, removeWords, stopwords("english"))
 desc <- tm_map(desc, stripWhitespace)
 library(SnowballC)
 desc <- tm_map(desc, stemDocument)
-myStopwords <- c("packag","use", "can", "includ", "also")
+desc <- tm_map(desc, content_transformer(gsub), pattern = "colour", replacement = "color")
+myStopwords <- c("use", "can", "includ", "also", "will", "see", "well", "htpp", "easi", "provid", "allow", "etc")
 desc <- tm_map(desc, removeWords, myStopwords)
 dtm <- DocumentTermMatrix(desc)
 rownames(dtm) <- head(package_downloads$package,100)
 freq <- colSums(as.matrix(dtm))
 order <- order(freq,decreasing=TRUE)
-write.csv(freq[order],'word_freq.csv')
+head(freq[order],10)
 
 #LDA
 library(topicmodels)
-ldaOut <- ldaOut <-LDA(dtm,10, method="Gibbs")
-ldaOut <- ldaOut <-LDA(dtm,5, method="Gibbs", control=list(nstart=20, seed = sample(1:100,20), best=TRUE, burnin = 4000, iter = 4000, thin=500))
-topics <- as.matrix(topics(ldaOut))
-colnames(topics) <- c("topic")
-terms <- as.matrix(terms(ldaOut,20))
-probabilities <- as.data.frame(ldaOut@gamma)
+lda <-LDA(dtm,5, method="Gibbs")
+ldatopics <- as.matrix(topics(lda))
+colnames(ldatopics) <- c("topic")
+ldatopics <- mutate(as.data.frame(ldatopics), package=rownames(ldatopics))
+filter(ldatopics, topic==4)
+ldaterms <- as.matrix(terms(lda,10))
+ldaprobabilities <- as.data.frame(lda@gamma)
+
+#CTM
+ctm <- CTM(dtm,5)
+ctmtopics <- as.data.frame(topics(ctm))
+colnames(ctmtopics) <- c("topic")
+ctmtopics <- mutate(as.data.frame(ctmtopics), package=rownames(ctmtopics))
+filter(ctmtopics, topic==3)
+ctmterms <- as.matrix(terms(ctm,10))
+ctmprobabilities <- as.data.frame(ctm@gamma)
+
+
 
 #ALSO: to inspect element
 writeLines(as.character(desc[[1]]))

@@ -1,0 +1,178 @@
+---
+title: "Topic Modeling with Popular R Packages"
+author: "Maggie Matsui"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+After figuring out which R packages people use most often, we have to figure out a way to organize them to teach them to people more effectively. Every package has a description file, where there is a brief summary of what the package does. I used a topic model to create a set of topics from the description files and put each package into one of the topics.  
+
+First, I had to get the description files for the top 100 packages (based on index, not raw downloads) from CRAN. I made a character vector to put the descriptions in. If a package had been removed from CRAN (didn't have a page that existed anymore, or had a page saying it had been removed from CRAN), no description was put into the vector.  
+I downloaded the HTML for each package description, and then pulled out just the few sentences describing the package, got rid of extra HTML on the edges of the description, and put it all onto one line.
+```{r}
+setwd("~/Documents/data/packages")
+load("index.Rdata")
+library(RCurl)
+desc <- character(100)
+for(i in 1:100){
+  url <- paste('https://cran.r-project.org/package=', index$package[i],sep='')
+  if(url.exists(url)){
+    cranpage <- readLines(url)
+    if(FALSE==TRUE %in% grepl("removed from the CRAN repository",cranpage)){
+      a<-grep('^<p>', cranpage)
+      b<-grep('</p>$', cranpage)
+      c <- cranpage[a[1]:b[1]]
+      c <-sub('<p>','', c)
+      c <- gsub('</p>', '', c)
+      desc[i] <- paste(c,sep=" ", collapse=" ")
+    }
+    else{
+      desc[i] <- NA
+    }
+  }
+  else{
+    desc[i] <- NA
+  }
+}
+```
+
+Next, I transformed the descriptions into a format that the topicmodels package could use by using the tm package.
+
+I got rid of any NA's from packages that were no longer on CRAN.
+```{r}
+desc <- desc[!is.na(desc)]
+```
+
+I converted the vector into a Corpus object so that I could clean it using the tm package.
+```{r}
+library(tm)
+desc <- Corpus(VectorSource(desc))
+```
+
+I removed punctuation, made all of the text lowercase, and got rid of common words (i.e. "is", "a", "and", etc.). I removed extra spaces in the text. 
+```{r}
+desc <- tm_map(desc, removePunctuation)
+desc <- tm_map(desc, content_transformer(tolower))
+desc <- tm_map(desc, removeWords, stopwords("english"))
+desc <- tm_map(desc, stripWhitespace)
+```
+Next, I stemmed the corpus (set of descriptions). Stemming uses an algorithm that essentially cuts off the ends of words so that words with the same basic meaning will be treated as the same word by the computer. For example, words like "variable" and "variability" become "variabl". 
+```{r}
+library(SnowballC)
+desc <- tm_map(desc, stemDocument)
+```
+
+After this, I noticed that not all package descriptions used the same variety of English and corrected it. I also noticed that there were some frequently used words that carried little meaning and removed those. 
+```{r}
+desc <- tm_map(desc, content_transformer(gsub), pattern = "colour", replacement = "color")
+myStopwords <- c("use", "can", "includ", "also", "will", "provid", "allow")
+desc <- tm_map(desc, removeWords, myStopwords)
+```
+
+I created a document term matrix from the corpus, which is a matrix that has columns for each word in the corpus and rows for each description in the corpus. Each cell contains the number of times the word in that column occurs in the document in that row. 
+
+```{r}
+dtm <- DocumentTermMatrix(desc)
+rownames(dtm) <- head(index$package,100)
+```
+I also looked at the highest frequency words in the entire corpus.
+```{r}
+freq <- colSums(as.matrix(dtm))
+order <- order(freq,decreasing=TRUE)
+head(freq[order],10)
+```
+
+I used Latent Dirichlet Allocation (LDA) model. This model assumes that each description in the corpus is a combination of *k* topics, where *k* is set by the user. For example, a description of a package may be 60% Topic A, 20% Topic B, 20% Topic C, and 0% Topic D.
+I set *k*=5.
+```{r}
+library(topicmodels)
+library(dplyr)
+lda <-LDA(dtm,5, method="Gibbs")
+ldatopics <- as.matrix(topics(lda))
+colnames(ldatopics) <- c("topic")
+ldatopics <- mutate(as.data.frame(ldatopics), package=rownames(ldatopics))
+ldaterms <- as.matrix(terms(lda,10))
+ldaprobabilities <- as.data.frame(lda@gamma)
+colnames(ldaprobabilities) <- c("topic1", "topic2", "topic3", "topic4", "topic5")
+rownames(ldaprobabilities) <- index$package[1:100]
+```
+
+Each topic is described by a set of words and the probability that they appear in descriptions that fit that topic. Here are the topics created:
+```{r}
+ldaterms
+```
+
+We can also see which packages fit into which topics:
+```{r}
+head(ldatopics,10)
+filter(ldatopics, topic==3)
+```
+
+These are the topic probabilities for some packages:
+```{r}
+head(ldaprobabilities,10)
+```
+
+
+The same process can be done on the 100 most popular packages by raw downloads.
+```{r, include=FALSE}
+setwd("~/Documents/data/packages")
+load("package_downloads.Rdata")
+library(RCurl)
+rdesc <- character(100)
+for(i in 1:100){
+  url <- paste('https://cran.r-project.org/package=', package_downloads$package[i],sep='')
+  if(url.exists(url)){
+    cranpage <- readLines(url)
+    if(FALSE==TRUE %in% grepl("removed from the CRAN repository",cranpage)){
+      a<-grep('^<p>', cranpage)
+      b<-grep('</p>$', cranpage)
+      c <- cranpage[a[1]:b[1]]
+      c <-sub('<p>','', c)
+      c <- gsub('</p>', '', c)
+      rdesc[i] <- paste(c,sep=" ", collapse=" ")
+    }
+    else{
+      rdesc[i] <- NA
+    }
+  }
+  else{
+    rdesc[i] <- NA
+  }
+}
+rdesc <- rdesc[!is.na(desc)]
+```
+```{r, include=FALSE}
+rdesc <- Corpus(VectorSource(rdesc))
+```
+```{r, include=FALSE}
+rdesc <- tm_map(rdesc, removePunctuation)
+rdesc <- tm_map(rdesc, content_transformer(tolower))
+rdesc <- tm_map(rdesc, removeWords, stopwords("english"))
+rdesc <- tm_map(rdesc, stripWhitespace)
+```
+```{r, include=FALSE}
+rdesc <- tm_map(rdesc, stemDocument)
+```
+```{r, include=FALSE}
+rdesc <- tm_map(rdesc, content_transformer(gsub), pattern = "colour", replacement = "color")
+myStopwords <- c("use", "can", "includ", "also", "will", "provid", "allow")
+rdesc <- tm_map(rdesc, removeWords, myStopwords)
+```
+```{r, include=FALSE}
+rdtm <- DocumentTermMatrix(rdesc)
+rownames(rdtm) <- head(package_downloads$package,100)
+```
+```{r, include=FALSE}
+rlda <-LDA(rdtm,5, method="Gibbs")
+rldatopics <- as.matrix(topics(rlda))
+colnames(rldatopics) <- c("topic")
+rldatopics <- mutate(as.data.frame(rldatopics), package=rownames(rldatopics))
+rldaterms <- as.matrix(terms(rlda,10))
+```
+
+```{r, echo=FALSE}
+ldaterms
+```
